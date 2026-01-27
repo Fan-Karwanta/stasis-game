@@ -112,11 +112,15 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
+    marginTop: 12,
+    textAlign: 'center',
+    
   },
   subtitle: {
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 4,
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,

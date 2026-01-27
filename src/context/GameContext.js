@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loadGameProgress, saveGameProgress, getDefaultProgress } from '../utils/storage';
+import { loadGameProgress, saveGameProgress, getDefaultProgress, clearAllData } from '../utils/storage';
 
 const GameContext = createContext();
 
@@ -87,9 +87,13 @@ export const GameProvider = ({ children }) => {
   };
 
   const resetAllProgress = async () => {
+    await clearAllData();
     const defaultProgress = getDefaultProgress();
     setProgress(defaultProgress);
-    await saveGameProgress(defaultProgress);
+    setLives(3);
+    setCurrentLevelStars(3);
+    setHintsUsed(0);
+    setTimeBalanced(0);
   };
 
   const value = {

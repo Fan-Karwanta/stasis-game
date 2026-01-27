@@ -5,6 +5,7 @@ import Animated, {
   useSharedValue,
   withTiming,
   withSpring,
+  interpolateColor,
   Easing,
 } from 'react-native-reanimated';
 import { COLORS, getMeterColor } from '../constants/colors';
@@ -18,8 +19,11 @@ const StatusMeter = ({
   label,
   unit = '',
   showNormalRange = true,
+  compact = false,
 }) => {
   const animatedWidth = useSharedValue(0);
+  const indicatorPosition = useSharedValue(0);
+  const pulseScale = useSharedValue(1);
   const statusColor = getMeterColor(value, normalMin, normalMax);
 
   const percentage = ((value - minValue) / (maxValue - minValue)) * 100;
@@ -27,14 +31,30 @@ const StatusMeter = ({
   const normalMaxPercent = ((normalMax - minValue) / (maxValue - minValue)) * 100;
 
   useEffect(() => {
-    animatedWidth.value = withSpring(Math.min(100, Math.max(0, percentage)), {
-      damping: 15,
-      stiffness: 100,
+    // Smoother animation with better timing
+    animatedWidth.value = withTiming(Math.min(100, Math.max(0, percentage)), {
+      duration: 400,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     });
+    indicatorPosition.value = withTiming(Math.min(100, Math.max(0, percentage)), {
+      duration: 350,
+      easing: Easing.out(Easing.cubic),
+    });
+    
+    // Pulse effect when value changes significantly
+    pulseScale.value = withSpring(1.15, { damping: 8 });
+    setTimeout(() => {
+      pulseScale.value = withSpring(1, { damping: 12 });
+    }, 150);
   }, [value]);
 
   const fillAnimatedStyle = useAnimatedStyle(() => ({
     width: `${animatedWidth.value}%`,
+  }));
+
+  const indicatorAnimatedStyle = useAnimatedStyle(() => ({
+    left: `${indicatorPosition.value}%`,
+    transform: [{ scale: pulseScale.value }, { translateX: -8 }],
   }));
 
   const getStatusText = () => {
@@ -44,20 +64,20 @@ const StatusMeter = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, compact && styles.labelCompact]}>{label}</Text>
         <View style={styles.valueContainer}>
-          <Text style={[styles.value, { color: statusColor }]}>
+          <Animated.Text style={[styles.value, compact && styles.valueCompact, { color: statusColor }]}>
             {value.toFixed(1)} {unit}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-            <Text style={styles.statusText}>{getStatusText()}</Text>
+          </Animated.Text>
+          <View style={[styles.statusBadge, compact && styles.statusBadgeCompact, { backgroundColor: statusColor }]}>
+            <Text style={[styles.statusText, compact && styles.statusTextCompact]}>{getStatusText()}</Text>
           </View>
         </View>
       </View>
       
-      <View style={styles.meterContainer}>
+      <View style={[styles.meterContainer, compact && styles.meterContainerCompact]}>
         {showNormalRange && (
           <View
             style={[
@@ -76,16 +96,26 @@ const StatusMeter = ({
             fillAnimatedStyle,
           ]}
         />
+        {/* Indicator dot */}
+        <Animated.View
+          style={[
+            styles.indicator,
+            { backgroundColor: statusColor },
+            indicatorAnimatedStyle,
+          ]}
+        />
         <View style={styles.meterOverlay} />
       </View>
 
-      <View style={styles.rangeLabels}>
-        <Text style={styles.rangeLabel}>{minValue}</Text>
-        <Text style={[styles.rangeLabel, styles.normalRangeLabel]}>
-          Normal: {normalMin}-{normalMax}
-        </Text>
-        <Text style={styles.rangeLabel}>{maxValue}</Text>
-      </View>
+      {!compact && (
+        <View style={styles.rangeLabels}>
+          <Text style={styles.rangeLabel}>{minValue}</Text>
+          <Text style={[styles.rangeLabel, styles.normalRangeLabel]}>
+            Normal: {normalMin}-{normalMax}
+          </Text>
+          <Text style={styles.rangeLabel}>{maxValue}</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -126,12 +156,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   meterContainer: {
-    height: 24,
+    height: 28,
     backgroundColor: COLORS.background,
-    borderRadius: 12,
-    overflow: 'hidden',
+    borderRadius: 14,
+    overflow: 'visible',
     borderWidth: 2,
     borderColor: COLORS.textSecondary,
+    position: 'relative',
   },
   normalRange: {
     position: 'absolute',
@@ -144,11 +175,26 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: '100%',
-    borderRadius: 10,
+    borderRadius: 12,
+    opacity: 0.85,
+  },
+  indicator: {
+    position: 'absolute',
+    top: -4,
+    width: 16,
+    height: 36,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: COLORS.cardBackground,
   },
   meterOverlay: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   rangeLabels: {
     flexDirection: 'row',
@@ -162,6 +208,28 @@ const styles = StyleSheet.create({
   normalRangeLabel: {
     color: COLORS.normal,
     fontWeight: '600',
+  },
+  // Compact styles for Level 4
+  containerCompact: {
+    paddingHorizontal: 8,
+  },
+  labelCompact: {
+    fontSize: 13,
+  },
+  valueCompact: {
+    fontSize: 14,
+  },
+  statusBadgeCompact: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusTextCompact: {
+    fontSize: 8,
+  },
+  meterContainerCompact: {
+    height: 20,
+    borderRadius: 10,
   },
 });
 

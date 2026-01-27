@@ -32,7 +32,8 @@ export default function App() {
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: COLORS.background },
-              animation: 'slide_from_right',
+              animation: 'fade_from_bottom',
+              animationDuration: 250,
             }}
           >
             <Stack.Screen name="Splash" component={SplashScreen} />

@@ -5,6 +5,9 @@ import Animated, {
   useSharedValue,
   withSpring,
   withSequence,
+  withTiming,
+  Easing,
+  interpolateColor,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../constants/colors';
@@ -18,18 +21,25 @@ const ActionButton = ({
   selected = false,
 }) => {
   const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+  const elevation = useSharedValue(3);
 
   const handlePressIn = () => {
     if (!disabled) {
-      scale.value = withSpring(0.92);
+      scale.value = withTiming(0.92, { duration: 100, easing: Easing.out(Easing.cubic) });
+      opacity.value = withTiming(0.85, { duration: 100 });
+      elevation.value = withTiming(1, { duration: 100 });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
 
   const handlePressOut = () => {
     scale.value = withSequence(
-      withSpring(1.05),
-      withSpring(1)
+      withSpring(1.08, { damping: 8, stiffness: 400 }),
+      withSpring(1, { damping: 12, stiffness: 200 })
     );
+    opacity.value = withTiming(1, { duration: 150 });
+    elevation.value = withSpring(3);
   };
 
   const handlePress = () => {
@@ -41,6 +51,7 @@ const ActionButton = ({
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+    opacity: opacity.value,
   }));
 
   return (
@@ -68,16 +79,16 @@ const ActionButton = ({
 const styles = StyleSheet.create({
   button: {
     backgroundColor: COLORS.cardBackground,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 100,
+    minWidth: 105,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
     borderWidth: 2,
     borderColor: 'transparent',
   },
@@ -90,7 +101,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.levelLocked,
   },
   icon: {
-    fontSize: 32,
+    fontSize: 36,
     marginBottom: 8,
   },
   name: {

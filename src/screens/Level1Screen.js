@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,9 +9,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, getMeterColor } from '../constants/colors';
-import { STIMULI, ACTIONS, FEEDBACK_MESSAGES } from '../constants/gameData';
+import { STIMULI, FEEDBACK_MESSAGES } from '../constants/gameData';
 import { useGame } from '../context/GameContext';
-import { StatusMeter, ActionButton, LivesDisplay, BodySilhouette } from '../components';
+import { StatusMeter, LivesDisplay, BodySilhouette, SituationVisual } from '../components';
 
 const NORMAL_MIN = 36.5;
 const NORMAL_MAX = 37.5;
@@ -28,11 +28,46 @@ const Level1Screen = ({ navigation }) => {
   const [timeBalanced, setTimeBalanced] = useState(0);
   const [gameActive, setGameActive] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [shouldEndGame, setShouldEndGame] = useState(false);
+  
+  const timeBalancedRef = useRef(0);
+  const gameActiveRef = useRef(true);
+  const temperatureRef = useRef(temperature);
 
   useEffect(() => {
     resetLevelState();
     generateStimulus();
+    return () => {
+      gameActiveRef.current = false;
+    };
   }, []);
+
+  // Update refs when state changes
+  useEffect(() => {
+    timeBalancedRef.current = timeBalanced;
+  }, [timeBalanced]);
+
+  useEffect(() => {
+    gameActiveRef.current = gameActive;
+  }, [gameActive]);
+
+  useEffect(() => {
+    temperatureRef.current = temperature;
+  }, [temperature]);
+
+  // Handle game end navigation separately to avoid setState during render
+  useEffect(() => {
+    if (shouldEndGame && !gameActiveRef.current) {
+      const stars = calculateStars();
+      navigation.replace('Results', {
+        levelId: 1,
+        stars,
+        timeBalanced: timeBalancedRef.current,
+        totalTime: GAME_DURATION,
+        systemName: 'Thermoregulation',
+      });
+    }
+  }, [shouldEndGame, navigation, calculateStars]);
 
   // Game timer
   useEffect(() => {
@@ -42,7 +77,7 @@ const Level1Screen = ({ navigation }) => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           setGameActive(false);
-          handleGameEnd();
+          setShouldEndGame(true);
           return 0;
         }
         return prev - 1;
@@ -52,20 +87,24 @@ const Level1Screen = ({ navigation }) => {
     return () => clearInterval(timer);
   }, [gameActive]);
 
-  // Track time balanced
+  // Track time balanced - use ref to avoid restarting interval on every temperature change
   useEffect(() => {
     if (!gameActive) return;
     
     const balanceTimer = setInterval(() => {
-      if (temperature >= NORMAL_MIN && temperature <= NORMAL_MAX) {
+      if (temperatureRef.current >= NORMAL_MIN && temperatureRef.current <= NORMAL_MAX) {
         setTimeBalanced((prev) => prev + 1);
       }
     }, 1000);
 
     return () => clearInterval(balanceTimer);
-  }, [gameActive, temperature]);
+  }, [gameActive]);
 
   // Dynamic temperature change (homeostasis is continuous)
+  // DIFFICULTY CONFIG: Change interval (ms) to adjust instability speed
+  // Lower = faster/harder, Higher = slower/easier (default was 2000)
+  const DRIFT_INTERVAL = 667; // 3x faster than original 2000ms
+  
   useEffect(() => {
     if (!gameActive) return;
     
@@ -76,7 +115,7 @@ const Level1Screen = ({ navigation }) => {
         const newTemp = prev + drift;
         return Math.max(34, Math.min(42, newTemp));
       });
-    }, 2000);
+    }, DRIFT_INTERVAL);
 
     return () => clearInterval(driftTimer);
   }, [gameActive]);
@@ -102,7 +141,7 @@ const Level1Screen = ({ navigation }) => {
   useEffect(() => {
     if (lives <= 0) {
       setGameActive(false);
-      handleGameEnd();
+      setShouldEndGame(true);
     }
   }, [lives]);
 
@@ -152,16 +191,10 @@ const Level1Screen = ({ navigation }) => {
     setShowHint(true);
   };
 
-  const handleGameEnd = () => {
-    const stars = calculateStars();
-    navigation.replace('Results', {
-      levelId: 1,
-      stars,
-      timeBalanced,
-      totalTime: GAME_DURATION,
-      systemName: 'Thermoregulation',
-    });
-  };
+  const handleGameEnd = useCallback(() => {
+    setGameActive(false);
+    setShouldEndGame(true);
+  }, []);
 
   const getHintText = () => {
     if (temperature > NORMAL_MAX) {
@@ -174,19 +207,51 @@ const Level1Screen = ({ navigation }) => {
 
   const statusColor = getMeterColor(temperature, NORMAL_MIN, NORMAL_MAX);
 
+  // Inline actions like Level4
+  const actions = [
+    { id: 'sweat', name: 'Sweat', icon: '💦', effect: -0.8, description: 'Cool down' },
+    { id: 'shiver', name: 'Shiver', icon: '🥶', effect: 0.8, description: 'Warm up' },
+    { id: 'rest', name: 'Rest', icon: '😌', effect: 0, description: 'Maintain' },
+  ];
+
+  const handleMiniAction = (action) => {
+    if (!gameActive) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    setTemperature((prev) => {
+      const newTemp = prev + action.effect;
+      return Math.max(34, Math.min(42, newTemp));
+    });
+
+    const newTemp = temperature + action.effect;
+    if (newTemp >= NORMAL_MIN && newTemp <= NORMAL_MAX) {
+      setFeedbackMessage('Good! Temperature stabilizing.');
+    } else if (newTemp > NORMAL_MAX) {
+      setFeedbackMessage('Still too hot! Keep cooling down.');
+    } else {
+      setFeedbackMessage('Still too cold! Keep warming up.');
+    }
+    setShowFeedback(true);
+    setTimeout(() => setShowFeedback(false), 1500);
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
-      <Animated.View entering={FadeIn} style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backText}>✕</Text>
-          </Pressable>
+      <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Text style={styles.backText}>✕</Text>
+            </Pressable>
+          </View>
+          <View style={styles.headerCenter}>
+            <Text style={styles.levelTitle}>🌡️ Thermoregulation</Text>
+          </View>
+          <View style={styles.headerLeft} />
         </View>
-        <View style={styles.headerCenter}>
-          <Text style={styles.levelTitle}>🌡️ Thermoregulation</Text>
-        </View>
-        <View style={styles.headerRight}>
+        <View style={styles.livesRow}>
           <LivesDisplay lives={lives} />
         </View>
       </Animated.View>
@@ -203,74 +268,77 @@ const Level1Screen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* Body Visualization */}
-      <View style={styles.bodyContainer}>
-        <BodySilhouette
-          value={temperature}
-          normalMin={NORMAL_MIN}
-          normalMax={NORMAL_MAX}
-          systemType="temperature"
-        />
-      </View>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
+        {/* Situation Visualization */}
+        <SituationVisual stimulus={currentStimulus} systemType="temperature" />
 
-      {/* Temperature Meter */}
-      <View style={styles.meterSection}>
-        <StatusMeter
-          value={temperature}
-          minValue={34}
-          maxValue={42}
-          normalMin={NORMAL_MIN}
-          normalMax={NORMAL_MAX}
-          label="Body Temperature"
-          unit="°C"
-        />
-      </View>
-
-      {/* Stimulus Display */}
-      {currentStimulus && (
-        <View style={styles.stimulusContainer}>
-          <Text style={styles.stimulusLabel}>Current Situation:</Text>
-          <Text style={styles.stimulusText}>{currentStimulus.text}</Text>
+        {/* Temperature Section - Like Level4 */}
+        <View style={styles.systemSection}>
+          <StatusMeter
+            value={temperature}
+            minValue={34}
+            maxValue={42}
+            normalMin={NORMAL_MIN}
+            normalMax={NORMAL_MAX}
+            label="🌡️ Body Temperature"
+            unit="°C"
+          />
+          <View style={styles.miniActionsRow}>
+            {actions.map((action) => (
+              <Pressable
+                key={action.id}
+                style={styles.miniAction}
+                onPress={() => handleMiniAction(action)}
+                disabled={!gameActive}
+              >
+                <Text style={styles.miniActionIcon}>{action.icon}</Text>
+                <Text style={styles.miniActionName}>{action.name}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
-      )}
 
-      {/* Feedback Message */}
-      {showFeedback && (
-        <View style={[styles.feedbackContainer, { backgroundColor: statusColor + '20' }]}>
-          <Text style={[styles.feedbackText, { color: statusColor }]}>{feedbackMessage}</Text>
+        {/* Body Visualization */}
+        <View style={styles.bodyContainer}>
+          <BodySilhouette
+            value={temperature}
+            normalMin={NORMAL_MIN}
+            normalMax={NORMAL_MAX}
+            systemType="temperature"
+          />
         </View>
-      )}
 
-      {/* Action Buttons */}
-      <View style={styles.actionsContainer}>
-        <Text style={styles.actionsLabel}>Choose Response:</Text>
-        <View style={styles.actionsRow}>
-          {ACTIONS.temperature.map((action) => (
-            <ActionButton
-              key={action.id}
-              action={action}
-              onPress={handleAction}
-              disabled={!gameActive}
-            />
-          ))}
+        {/* Feedback Message */}
+        {showFeedback && (
+          <Animated.View 
+            entering={FadeIn.duration(200)} 
+            style={styles.feedbackContainer}
+          >
+            <Text style={styles.feedbackText}>{feedbackMessage}</Text>
+          </Animated.View>
+        )}
+
+        {/* Hint Button */}
+        <View style={styles.hintContainer}>
+          <Pressable
+            style={[styles.hintButton, hintsUsed >= 2 && styles.hintDisabled]}
+            onPress={handleHint}
+            disabled={hintsUsed >= 2}
+          >
+            <Text style={styles.hintButtonText}>💡 Hint ({2 - hintsUsed} left)</Text>
+          </Pressable>
         </View>
-      </View>
-
-      {/* Hint Button */}
-      <View style={styles.hintContainer}>
-        <Pressable
-          style={[styles.hintButton, hintsUsed >= 2 && styles.hintDisabled]}
-          onPress={handleHint}
-          disabled={hintsUsed >= 2}
-        >
-          <Text style={styles.hintButtonText}>💡 Hint ({2 - hintsUsed} left)</Text>
-        </Pressable>
-      </View>
+      </ScrollView>
 
       {/* Hint Modal */}
       <Modal visible={showHint} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowHint(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>💡 Hint</Text>
             <Text style={styles.modalText}>{getHintText()}</Text>
             <Pressable
@@ -279,8 +347,8 @@ const Level1Screen = ({ navigation }) => {
             >
               <Text style={styles.modalButtonText}>Got it!</Text>
             </Pressable>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -291,13 +359,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
   header: {
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
   },
   headerLeft: {
     width: 50,
@@ -306,9 +382,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
-  headerRight: {
-    width: 80,
-    alignItems: 'flex-end',
+  livesRow: {
+    alignItems: 'center',
+    marginTop: 8,
   },
   backButton: {
     width: 36,
@@ -349,56 +425,69 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.textPrimary,
   },
-  bodyContainer: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  meterSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
   stimulusContainer: {
     backgroundColor: COLORS.cardBackground,
     marginHorizontal: 16,
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   stimulusLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
   stimulusText: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.textPrimary,
     fontWeight: '500',
   },
+  systemSection: {
+    backgroundColor: COLORS.cardBackground,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 16,
+  },
+  miniActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 16,
+  },
+  miniAction: {
+    backgroundColor: COLORS.background,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  miniActionIcon: {
+    fontSize: 28,
+  },
+  miniActionName: {
+    fontSize: 12,
+    color: COLORS.textPrimary,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  bodyContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
   feedbackContainer: {
+    backgroundColor: COLORS.primary + '20',
     marginHorizontal: 16,
     padding: 12,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   feedbackText: {
     fontSize: 14,
     textAlign: 'center',
+    color: COLORS.primary,
     fontWeight: '500',
-  },
-  actionsContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  actionsLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    gap: 8,
   },
   hintContainer: {
     alignItems: 'center',

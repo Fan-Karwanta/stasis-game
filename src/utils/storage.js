@@ -87,3 +87,17 @@ export const resetProgress = async () => {
     return false;
   }
 };
+
+export const clearAllData = async () => {
+  try {
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.GAME_PROGRESS,
+      STORAGE_KEYS.HIGH_SCORES,
+      STORAGE_KEYS.SETTINGS,
+    ]);
+    return true;
+  } catch (error) {
+    console.error('Error clearing all data:', error);
+    return false;
+  }
+};

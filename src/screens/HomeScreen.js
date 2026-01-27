@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Modal, Image } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -48,7 +48,15 @@ const FloatingIcon = ({ icon, delay, startX, startY }) => {
 };
 
 const HomeScreen = ({ navigation }) => {
-  const { progress } = useGame();
+  const { progress, resetAllProgress } = useGame();
+  const [showSettings, setShowSettings] = useState(false);
+  const [showConfirmClear, setShowConfirmClear] = useState(false);
+
+  const handleClearData = async () => {
+    await resetAllProgress();
+    setShowConfirmClear(false);
+    setShowSettings(false);
+  };
 
   const floatingIcons = [
     { icon: '🌡️', x: '10%', y: '15%', delay: 0 },
@@ -61,6 +69,14 @@ const HomeScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
+      {/* Settings Button */}
+      <Pressable 
+        style={styles.settingsButton} 
+        onPress={() => setShowSettings(true)}
+      >
+        <Text style={styles.settingsIcon}>⚙️</Text>
+      </Pressable>
+
       {floatingIcons.map((item, index) => (
         <FloatingIcon
           key={index}
@@ -72,6 +88,11 @@ const HomeScreen = ({ navigation }) => {
       ))}
 
       <Animated.View entering={FadeIn.delay(200)} style={styles.header}>
+        <Image 
+          source={require('../../assets/logo-stasis.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>STASIS</Text>
         <Text style={styles.subtitle}>Homeostasis Manager</Text>
         
@@ -111,6 +132,61 @@ const HomeScreen = ({ navigation }) => {
           style={styles.buttonSpacing}
         />
       </Animated.View>
+
+      {/* Settings Modal */}
+      <Modal visible={showSettings} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSettings(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>⚙️ Settings</Text>
+            
+            <Pressable 
+              style={styles.settingsOption}
+              onPress={() => setShowConfirmClear(true)}
+            >
+              <Text style={styles.settingsOptionIcon}>🗑️</Text>
+              <View style={styles.settingsOptionText}>
+                <Text style={styles.settingsOptionTitle}>Clear All Data</Text>
+                <Text style={styles.settingsOptionDesc}>Reset all progress and saved data</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => setShowSettings(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Confirm Clear Modal */}
+      <Modal visible={showConfirmClear} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowConfirmClear(false)}>
+          <Pressable style={styles.confirmModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.confirmIcon}>⚠️</Text>
+            <Text style={styles.confirmTitle}>Clear All Data?</Text>
+            <Text style={styles.confirmText}>
+              This will permanently delete all your progress, stars, and saved data. This action cannot be undone.
+            </Text>
+            
+            <View style={styles.confirmButtons}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setShowConfirmClear(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.deleteButton}
+                onPress={handleClearData}
+              >
+                <Text style={styles.deleteButtonText}>Yes, Clear</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -120,6 +196,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
     paddingHorizontal: 20,
+  },
+  settingsButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.cardBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
+  },
+  settingsIcon: {
+    fontSize: 22,
   },
   floatingIcon: {
     position: 'absolute',
@@ -140,7 +236,13 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginTop: 80,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 12,
   },
   title: {
     fontSize: 48,
@@ -187,6 +289,119 @@ const styles = StyleSheet.create({
   },
   buttonSpacing: {
     marginTop: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  settingsOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  settingsOptionIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  settingsOptionText: {
+    flex: 1,
+  },
+  settingsOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  settingsOptionDesc: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  closeButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  closeButtonText: {
+    color: COLORS.textLight,
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  confirmModal: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+  },
+  confirmIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  confirmText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.textSecondary,
+  },
+  cancelButtonText: {
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: COLORS.error,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  deleteButtonText: {
+    color: COLORS.textLight,
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
 

@@ -3,14 +3,16 @@ import { View, Text, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { COLORS } from '../constants/colors';
 
-const LivesDisplay = ({ lives, maxLives = 3 }) => {
+const LivesDisplay = ({ lives, maxLives = 3, size = 'normal' }) => {
+  const heartSize = size === 'small' ? 18 : 24;
+  
   return (
     <View style={styles.container}>
       {[...Array(maxLives)].map((_, index) => (
         <Animated.Text
           key={index}
           style={[
-            styles.heart,
+            { fontSize: heartSize },
             index < lives ? styles.heartFull : styles.heartEmpty,
           ]}
         >
@@ -26,9 +28,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  heart: {
-    fontSize: 24,
   },
   heartFull: {
     opacity: 1,

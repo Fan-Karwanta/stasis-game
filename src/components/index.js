@@ -5,3 +5,4 @@ export { default as Confetti } from './Confetti';
 export { default as BodySilhouette } from './BodySilhouette';
 export { default as StatusMeter } from './StatusMeter';
 export { default as ActionButton } from './ActionButton';
+export { default as SituationVisual } from './SituationVisual';

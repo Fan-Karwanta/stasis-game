@@ -4,11 +4,11 @@
     "slug": "balance-within",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo-stasis.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo-stasis.png",
       "resizeMode": "contain",
       "backgroundColor": "#FAFBFF"
     },
@@ -17,12 +17,18 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/logo-stasis.png",
         "backgroundColor": "#FAFBFF"
-      }
+      },
+      "package": "com.fan_karwanta.balancewithin"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "da650a87-0021-4296-843e-6ae3b6695fd2"
+      }
     }
   }
 }

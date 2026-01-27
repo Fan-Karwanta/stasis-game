@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, getMeterColor } from '../constants/colors';
 import { useGame } from '../context/GameContext';
-import { StatusMeter, ActionButton, LivesDisplay } from '../components';
+import { StatusMeter, LivesDisplay } from '../components';
 
 const GAME_DURATION = 90;
 
@@ -27,6 +27,14 @@ const Level4Screen = ({ navigation }) => {
   const [gameActive, setGameActive] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showScenarioModal, setShowScenarioModal] = useState(true);
+  const [shouldEndGame, setShouldEndGame] = useState(false);
+  
+  const timeBalancedRef = useRef(0);
+  const gameActiveRef = useRef(true);
+  const insulinDisabledRef = useRef(true);
+  const temperatureRef = useRef(temperature);
+  const hydrationRef = useRef(hydration);
+  const glucoseRef = useRef(glucose);
 
   const scenarios = [
     {
@@ -39,7 +47,52 @@ const Level4Screen = ({ navigation }) => {
   useEffect(() => {
     resetLevelState();
     setCurrentScenario(scenarios[0]);
+    return () => {
+      gameActiveRef.current = false;
+    };
   }, []);
+
+  // Update refs when state changes
+  useEffect(() => {
+    timeBalancedRef.current = timeBalanced;
+  }, [timeBalanced]);
+
+  useEffect(() => {
+    gameActiveRef.current = gameActive;
+  }, [gameActive]);
+
+  useEffect(() => {
+    insulinDisabledRef.current = insulinDisabled;
+  }, [insulinDisabled]);
+
+  useEffect(() => {
+    temperatureRef.current = temperature;
+  }, [temperature]);
+
+  useEffect(() => {
+    hydrationRef.current = hydration;
+  }, [hydration]);
+
+  useEffect(() => {
+    glucoseRef.current = glucose;
+  }, [glucose]);
+
+  // Handle game end navigation separately to avoid setState during render
+  useEffect(() => {
+    if (shouldEndGame && !gameActiveRef.current) {
+      const stars = calculateStars();
+      navigation.replace('Results', {
+        levelId: 4,
+        stars,
+        timeBalanced: timeBalancedRef.current,
+        totalTime: GAME_DURATION,
+        systemName: 'System Interaction',
+        specialMessage: insulinDisabledRef.current 
+          ? 'This scenario simulates diabetes - when insulin response fails, maintaining glucose balance becomes very difficult.'
+          : null,
+      });
+    }
+  }, [shouldEndGame, navigation, calculateStars]);
 
   // Game timer
   useEffect(() => {
@@ -49,7 +102,7 @@ const Level4Screen = ({ navigation }) => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           setGameActive(false);
-          handleGameEnd();
+          setShouldEndGame(true);
           return 0;
         }
         return prev - 1;
@@ -59,14 +112,14 @@ const Level4Screen = ({ navigation }) => {
     return () => clearInterval(timer);
   }, [gameActive, showScenarioModal]);
 
-  // Track time balanced (all systems must be balanced)
+  // Track time balanced (all systems must be balanced) - use refs to avoid restarting interval
   useEffect(() => {
     if (!gameActive || showScenarioModal) return;
     
     const balanceTimer = setInterval(() => {
-      const tempBalanced = temperature >= 36.5 && temperature <= 37.5;
-      const hydrationBalanced = hydration >= 40 && hydration <= 60;
-      const glucoseBalanced = glucose >= 70 && glucose <= 100;
+      const tempBalanced = temperatureRef.current >= 36.5 && temperatureRef.current <= 37.5;
+      const hydrationBalanced = hydrationRef.current >= 40 && hydrationRef.current <= 60;
+      const glucoseBalanced = glucoseRef.current >= 70 && glucoseRef.current <= 100;
       
       if (tempBalanced && hydrationBalanced && glucoseBalanced) {
         setTimeBalanced((prev) => prev + 1);
@@ -74,7 +127,7 @@ const Level4Screen = ({ navigation }) => {
     }, 1000);
 
     return () => clearInterval(balanceTimer);
-  }, [gameActive, showScenarioModal, temperature, hydration, glucose]);
+  }, [gameActive, showScenarioModal]);
 
   // Dynamic changes for all systems
   useEffect(() => {
@@ -142,7 +195,7 @@ const Level4Screen = ({ navigation }) => {
   useEffect(() => {
     if (lives <= 0) {
       setGameActive(false);
-      handleGameEnd();
+      setShouldEndGame(true);
     }
   }, [lives]);
 
@@ -178,19 +231,10 @@ const Level4Screen = ({ navigation }) => {
     setShowHint(true);
   };
 
-  const handleGameEnd = () => {
-    const stars = calculateStars();
-    navigation.replace('Results', {
-      levelId: 4,
-      stars,
-      timeBalanced,
-      totalTime: GAME_DURATION,
-      systemName: 'System Interaction',
-      specialMessage: insulinDisabled 
-        ? 'This scenario simulates diabetes - when insulin response fails, maintaining glucose balance becomes very difficult.'
-        : null,
-    });
-  };
+  const handleGameEnd = useCallback(() => {
+    setGameActive(false);
+    setShouldEndGame(true);
+  }, []);
 
   const getHintText = () => {
     const issues = [];
@@ -243,69 +287,63 @@ const Level4Screen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Header */}
-      <Animated.View entering={FadeIn} style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backText}>✕</Text>
-          </Pressable>
-        </View>
-        <View style={styles.headerCenter}>
-          <Text style={styles.levelTitle}>⚡ System Interaction</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <LivesDisplay lives={lives} />
-        </View>
-      </Animated.View>
+      {/* Compact Header with Timer */}
+      <View style={styles.compactHeader}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backText}>✕</Text>
+        </Pressable>
+        <Text style={styles.levelTitle}>⚡ System Interaction</Text>
+        <LivesDisplay lives={lives} size="small" />
+      </View>
 
-      {/* Timer */}
-      <View style={styles.timerContainer}>
-        <View style={styles.timerBox}>
-          <Text style={styles.timerLabel}>Time</Text>
+      {/* Timer Row */}
+      <View style={styles.timerRow}>
+        <View style={styles.timerItem}>
           <Text style={styles.timerValue}>{timeRemaining}s</Text>
+          <Text style={styles.timerLabel}>Time</Text>
         </View>
-        <View style={styles.timerBox}>
-          <Text style={styles.timerLabel}>All Balanced</Text>
+        {insulinDisabled && (
+          <View style={styles.warningPill}>
+            <Text style={styles.warningPillText}>⚠️ No Insulin</Text>
+          </View>
+        )}
+        <View style={styles.timerItem}>
           <Text style={[styles.timerValue, { color: COLORS.success }]}>{timeBalanced}s</Text>
+          <Text style={styles.timerLabel}>Balanced</Text>
         </View>
       </View>
 
-      {/* Warning Banner */}
-      {insulinDisabled && (
-        <View style={styles.warningBanner}>
-          <Text style={styles.warningText}>⚠️ Insulin Response Disabled</Text>
-        </View>
-      )}
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      {/* All Systems in One View - No Scroll Needed */}
+      <View style={styles.systemsContainer}>
         {/* Temperature Section */}
-        <View style={styles.systemSection}>
+        <View style={styles.compactSection}>
           <StatusMeter
             value={temperature}
             minValue={34}
             maxValue={42}
             normalMin={36.5}
             normalMax={37.5}
-            label="🌡️ Temperature"
+            label="🌡️ Temp"
             unit="°C"
+            compact
           />
-          <View style={styles.miniActionsRow}>
+          <View style={styles.actionsRow}>
             {actions.temperature.map((action) => (
               <Pressable
                 key={action.id}
-                style={styles.miniAction}
+                style={styles.actionBtn}
                 onPress={() => handleAction('temperature', action)}
                 disabled={!gameActive}
               >
-                <Text style={styles.miniActionIcon}>{action.icon}</Text>
-                <Text style={styles.miniActionName}>{action.name}</Text>
+                <Text style={styles.actionIcon}>{action.icon}</Text>
+                <Text style={styles.actionName}>{action.name}</Text>
               </Pressable>
             ))}
           </View>
         </View>
 
         {/* Hydration Section */}
-        <View style={styles.systemSection}>
+        <View style={styles.compactSection}>
           <StatusMeter
             value={hydration}
             minValue={0}
@@ -314,47 +352,49 @@ const Level4Screen = ({ navigation }) => {
             normalMax={60}
             label="💧 Hydration"
             unit="%"
+            compact
           />
-          <View style={styles.miniActionsRow}>
+          <View style={styles.actionsRow}>
             {actions.hydration.map((action) => (
               <Pressable
                 key={action.id}
-                style={styles.miniAction}
+                style={styles.actionBtn}
                 onPress={() => handleAction('hydration', action)}
                 disabled={!gameActive}
               >
-                <Text style={styles.miniActionIcon}>{action.icon}</Text>
-                <Text style={styles.miniActionName}>{action.name}</Text>
+                <Text style={styles.actionIcon}>{action.icon}</Text>
+                <Text style={styles.actionName}>{action.name}</Text>
               </Pressable>
             ))}
           </View>
         </View>
 
         {/* Glucose Section */}
-        <View style={styles.systemSection}>
+        <View style={styles.compactSection}>
           <StatusMeter
             value={glucose}
             minValue={30}
             maxValue={180}
             normalMin={70}
             normalMax={100}
-            label="🍬 Blood Glucose"
+            label="🍬 Glucose"
             unit="mg/dL"
+            compact
           />
-          <View style={styles.miniActionsRow}>
+          <View style={styles.actionsRow}>
             {actions.glucose.map((action) => (
               <Pressable
                 key={action.id}
                 style={[
-                  styles.miniAction,
+                  styles.actionBtn,
                   action.id === 'insulin' && insulinDisabled && styles.disabledAction,
                 ]}
                 onPress={() => handleAction('glucose', action)}
                 disabled={!gameActive || (action.id === 'insulin' && insulinDisabled)}
               >
-                <Text style={styles.miniActionIcon}>{action.icon}</Text>
+                <Text style={styles.actionIcon}>{action.icon}</Text>
                 <Text style={[
-                  styles.miniActionName,
+                  styles.actionName,
                   action.id === 'insulin' && insulinDisabled && styles.disabledText,
                 ]}>
                   {action.name}
@@ -367,13 +407,14 @@ const Level4Screen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Feedback Message */}
-        {showFeedback && (
-          <View style={styles.feedbackContainer}>
-            <Text style={styles.feedbackText}>{feedbackMessage}</Text>
-          </View>
-        )}
-      </ScrollView>
+      </View>
+
+      {/* Feedback Toast - Absolute positioned so it doesn't shift layout */}
+      {showFeedback && (
+        <View style={styles.feedbackToast}>
+          <Text style={styles.feedbackToastText}>{feedbackMessage}</Text>
+        </View>
+      )}
 
       {/* Hint Button */}
       <View style={styles.hintContainer}>
@@ -410,53 +451,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  header: {
+  compactHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 50,
     paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  headerLeft: {
-    width: 50,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerRight: {
-    width: 80,
-    alignItems: 'flex-end',
+    paddingBottom: 6,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: COLORS.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
   },
   backText: {
-    fontSize: 18,
+    fontSize: 16,
     color: COLORS.textSecondary,
   },
   levelTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
   },
-  timerContainer: {
+  timerRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    paddingVertical: 8,
-  },
-  timerBox: {
-    backgroundColor: COLORS.cardBackground,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+  },
+  timerItem: {
     alignItems: 'center',
   },
   timerLabel: {
@@ -468,35 +495,49 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.textPrimary,
   },
-  warningBanner: {
+  warningPill: {
     backgroundColor: COLORS.error + '20',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
   },
-  warningText: {
+  warningPillText: {
     color: COLORS.error,
     fontWeight: '600',
-    textAlign: 'center',
-    fontSize: 13,
+    fontSize: 11,
   },
-  scrollView: {
+  systemsContainer: {
     flex: 1,
+    paddingHorizontal: 12,
+    justifyContent: 'space-evenly',
   },
-  systemSection: {
+  compactSection: {
     backgroundColor: COLORS.cardBackground,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 16,
+    padding: 10,
+    borderRadius: 14,
+    marginBottom: 6,
   },
-  miniActionsRow: {
+  actionsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
-    marginTop: 12,
+    gap: 10,
+    marginTop: 8,
+  },
+  actionBtn: {
+    backgroundColor: COLORS.background,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    minWidth: 65,
+  },
+  actionIcon: {
+    fontSize: 18,
+  },
+  actionName: {
+    fontSize: 10,
+    color: COLORS.textPrimary,
+    marginTop: 2,
   },
   miniAction: {
     backgroundColor: COLORS.background,
@@ -527,18 +568,26 @@ const styles = StyleSheet.create({
     top: 2,
     right: 2,
   },
-  feedbackContainer: {
-    backgroundColor: COLORS.primary + '20',
-    marginHorizontal: 16,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
+  feedbackToast: {
+    position: 'absolute',
+    bottom: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  feedbackText: {
-    fontSize: 14,
+  feedbackToastText: {
+    fontSize: 13,
     textAlign: 'center',
-    color: COLORS.primary,
-    fontWeight: '500',
+    color: COLORS.textLight,
+    fontWeight: '600',
   },
   hintContainer: {
     alignItems: 'center',
