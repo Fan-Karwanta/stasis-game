@@ -6,3 +6,5 @@ export { default as BodySilhouette } from './BodySilhouette';
 export { default as StatusMeter } from './StatusMeter';
 export { default as ActionButton } from './ActionButton';
 export { default as SituationVisual } from './SituationVisual';
+export { default as HeartsModal } from './HeartsModal';
+export { default as HeartLossAnimation } from './HeartLossAnimation';

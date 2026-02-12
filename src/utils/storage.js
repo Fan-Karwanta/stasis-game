@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   GAME_PROGRESS: '@balance_within_progress',
   HIGH_SCORES: '@balance_within_scores',
   SETTINGS: '@balance_within_settings',
+  HEARTS: '@balance_within_hearts',
 };
 
 export const saveGameProgress = async (progress) => {
@@ -94,10 +95,39 @@ export const clearAllData = async () => {
       STORAGE_KEYS.GAME_PROGRESS,
       STORAGE_KEYS.HIGH_SCORES,
       STORAGE_KEYS.SETTINGS,
+      STORAGE_KEYS.HEARTS,
     ]);
     return true;
   } catch (error) {
     console.error('Error clearing all data:', error);
     return false;
+  }
+};
+
+export const getDefaultHearts = () => ({
+  count: 3,
+  replenishTimestamps: [],
+});
+
+export const saveHeartsData = async (heartsData) => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.HEARTS, JSON.stringify(heartsData));
+    return true;
+  } catch (error) {
+    console.error('Error saving hearts data:', error);
+    return false;
+  }
+};
+
+export const loadHeartsData = async () => {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.HEARTS);
+    if (data) {
+      return JSON.parse(data);
+    }
+    return getDefaultHearts();
+  } catch (error) {
+    console.error('Error loading hearts data:', error);
+    return getDefaultHearts();
   }
 };

@@ -51,6 +51,7 @@ const HomeScreen = ({ navigation }) => {
   const { progress, resetAllProgress } = useGame();
   const [showSettings, setShowSettings] = useState(false);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
   const handleClearData = async () => {
     await resetAllProgress();
@@ -141,6 +142,17 @@ const HomeScreen = ({ navigation }) => {
             
             <Pressable 
               style={styles.settingsOption}
+              onPress={() => setShowAbout(true)}
+            >
+              <Text style={styles.settingsOptionIcon}>ℹ️</Text>
+              <View style={styles.settingsOptionText}>
+                <Text style={styles.settingsOptionTitle}>About</Text>
+                <Text style={styles.settingsOptionDesc}>App information and credits</Text>
+              </View>
+            </Pressable>
+
+            <Pressable 
+              style={styles.settingsOption}
               onPress={() => setShowConfirmClear(true)}
             >
               <Text style={styles.settingsOptionIcon}>🗑️</Text>
@@ -184,6 +196,37 @@ const HomeScreen = ({ navigation }) => {
                 <Text style={styles.deleteButtonText}>Yes, Clear</Text>
               </Pressable>
             </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* About Modal */}
+      <Modal visible={showAbout} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowAbout(false)}>
+          <Pressable style={styles.aboutModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.aboutIcon}>ℹ️</Text>
+            <Text style={styles.aboutTitle}>STASIS</Text>
+            <Text style={styles.aboutSubtitle}>Homeostasis Manager</Text>
+            
+            <View style={styles.aboutDivider} />
+            
+            <Text style={styles.aboutRequirement}>
+              Requirement for Masters of Arts in Education, Major in Science Teaching
+            </Text>
+            
+            <View style={styles.aboutDivider} />
+            
+            <Text style={styles.aboutAuthorLabel}>Developed by:</Text>
+            <Text style={styles.aboutAuthor}>Aaron Joseph A. Paña</Text>
+            
+            <Text style={styles.aboutVersion}>Version 1.0.0</Text>
+            
+            <Pressable
+              style={styles.aboutCloseButton}
+              onPress={() => setShowAbout(false)}
+            >
+              <Text style={styles.aboutCloseButtonText}>Close</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -402,6 +445,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  aboutModal: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  aboutIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  aboutTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    letterSpacing: 4,
+  },
+  aboutSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  aboutDivider: {
+    width: '80%',
+    height: 1,
+    backgroundColor: COLORS.textSecondary + '30',
+    marginVertical: 16,
+  },
+  aboutRequirement: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontStyle: 'italic',
+  },
+  aboutAuthorLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  aboutAuthor: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  aboutVersion: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 20,
+  },
+  aboutCloseButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+  },
+  aboutCloseButtonText: {
+    color: COLORS.textLight,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

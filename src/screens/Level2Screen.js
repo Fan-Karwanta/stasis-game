@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, Alert } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, getMeterColor } from '../constants/colors';
 import { STIMULI, FEEDBACK_MESSAGES } from '../constants/gameData';
 import { useGame } from '../context/GameContext';
-import { StatusMeter, LivesDisplay, BodySilhouette, SituationVisual } from '../components';
+import { StatusMeter, BodySilhouette, SituationVisual } from '../components';
 
 const NORMAL_MIN = 40;
 const NORMAL_MAX = 60;
 const GAME_DURATION = 60;
 
 const Level2Screen = ({ navigation }) => {
-  const { lives, loseLife, useHint, hintsUsed, resetLevelState, calculateStars } = useGame();
+  const { heartsCount, deductHeart, useHint, hintsUsed, resetLevelState, calculateStars, canPlay, getNextReplenishTime } = useGame();
   
   const [hydration, setHydration] = useState(50);
   const [currentStimulus, setCurrentStimulus] = useState(null);
@@ -29,6 +29,20 @@ const Level2Screen = ({ navigation }) => {
   const hydrationRef = useRef(hydration);
 
   useEffect(() => {
+    if (!canPlay()) {
+      const nextTime = getNextReplenishTime();
+      const formatMs = (ms) => {
+        if (!ms || ms <= 0) return 'soon';
+        const s = Math.ceil(ms / 1000);
+        return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+      };
+      Alert.alert(
+        '💔 No Hearts',
+        `You have no hearts for this level.\nNext heart in ${formatMs(nextTime)}.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
     resetLevelState();
     generateStimulus();
     return () => {
@@ -59,6 +73,7 @@ const Level2Screen = ({ navigation }) => {
         timeBalanced: timeBalancedRef.current,
         totalTime: GAME_DURATION,
         systemName: 'Water Balance',
+        livesRemaining: heartsCount,
       });
     }
   }, [shouldEndGame, navigation, calculateStars]);
@@ -120,7 +135,7 @@ const Level2Screen = ({ navigation }) => {
     
     if (hydration < 20 || hydration > 85) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      loseLife();
+      deductHeart();
       setFeedbackMessage(hydration > 85 
         ? 'Critical! Overhydration can dilute electrolytes!' 
         : 'Critical! Severe dehydration detected!');
@@ -132,11 +147,11 @@ const Level2Screen = ({ navigation }) => {
 
   // Check for game over
   useEffect(() => {
-    if (lives <= 0) {
+    if (heartsCount <= 0) {
       setGameActive(false);
       setShouldEndGame(true);
     }
-  }, [lives]);
+  }, [heartsCount]);
 
   const generateStimulus = () => {
     const stimuli = STIMULI.hydration;
@@ -239,9 +254,6 @@ const Level2Screen = ({ navigation }) => {
             <Text style={styles.levelTitle}>💧 Water Balance</Text>
           </View>
           <View style={styles.headerLeft} />
-        </View>
-        <View style={styles.livesRow}>
-          <LivesDisplay lives={lives} />
         </View>
       </Animated.View>
 
@@ -370,10 +382,6 @@ const styles = StyleSheet.create({
   headerCenter: {
     flex: 1,
     alignItems: 'center',
-  },
-  livesRow: {
-    alignItems: 'center',
-    marginTop: 8,
   },
   backButton: {
     width: 36,

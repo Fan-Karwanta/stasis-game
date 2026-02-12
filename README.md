@@ -1,10 +1,10 @@
-# STASIS: Balance Within
+# STASIS
 
 A game-based learning mobile app for teaching homeostasis concepts to Grade 8-9 Science students (MATATAG-aligned).
 
 ## Overview
 
-**STASIS** (Balance Within) is an educational management/simulation game that helps learners understand:
+**STASIS** is an educational management/simulation game that helps learners understand:
 - Homeostasis as a process of dynamic balance
 - Components of feedback mechanisms (stimulus → receptor → control center → effector → response)
 - Negative feedback loops

@@ -148,6 +148,46 @@ const InstructionsScreen = ({ navigation }) => {
             <Text style={styles.colorText}>Blue = Low / Deficiency</Text>
           </View>
         </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.delay(1050)}
+          style={styles.heartsGuide}
+        >
+          <Text style={styles.heartsGuideTitle}>{'❤️'} Hearts System</Text>
+          <Text style={styles.heartsGuideDescription}>
+            You have 3 hearts shared across all levels. Be careful — every mistake costs a heart!
+          </Text>
+          <View style={styles.heartsInfoRow}>
+            <Text style={styles.heartsInfoIcon}>{'💔'}</Text>
+            <Text style={styles.heartsInfoText}>
+              Wrong answers or critical failures deduct 1 heart
+            </Text>
+          </View>
+          <View style={styles.heartsInfoRow}>
+            <Text style={styles.heartsInfoIcon}>{'⏱️'}</Text>
+            <Text style={styles.heartsInfoText}>
+              Each lost heart regenerates after 5 minutes
+            </Text>
+          </View>
+          <View style={styles.heartsInfoRow}>
+            <Text style={styles.heartsInfoIcon}>{'🚫'}</Text>
+            <Text style={styles.heartsInfoText}>
+              If all hearts are lost, wait for one to regenerate before playing
+            </Text>
+          </View>
+          <View style={styles.heartsInfoRow}>
+            <Text style={styles.heartsInfoIcon}>{'📊'}</Text>
+            <Text style={styles.heartsInfoText}>
+              You need at least 75% stability to pass a level
+            </Text>
+          </View>
+          <View style={styles.heartsInfoRow}>
+            <Text style={styles.heartsInfoIcon}>{'👆'}</Text>
+            <Text style={styles.heartsInfoText}>
+              Tap the heart icon in the top-right corner to check your hearts anytime
+            </Text>
+          </View>
+        </Animated.View>
       </ScrollView>
 
       <Animated.View entering={FadeIn.delay(1100)} style={styles.footer}>
@@ -333,6 +373,47 @@ const styles = StyleSheet.create({
   colorText: {
     fontSize: 14,
     color: COLORS.textPrimary,
+  },
+  heartsGuide: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F8717120',
+  },
+  heartsGuideTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  heartsGuideDescription: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  heartsInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  heartsInfoIcon: {
+    fontSize: 18,
+    marginRight: 10,
+    marginTop: 1,
+  },
+  heartsInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    lineHeight: 20,
   },
   footer: {
     padding: 20,

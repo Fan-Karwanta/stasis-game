@@ -14,27 +14,43 @@ import { COLORS } from '../constants/colors';
 import { useGame } from '../context/GameContext';
 import { StarsDisplay, Confetti, AnimatedButton } from '../components';
 
+const PASS_THRESHOLD = 75; // 75% stability required to pass
+
 const ResultsScreen = ({ navigation, route }) => {
-  const { levelId, stars, timeBalanced, totalTime, systemName, specialMessage } = route.params;
-  const { completeLevel, progress } = useGame();
+  const { levelId, stars, timeBalanced, totalTime, systemName, specialMessage, livesRemaining } = route.params;
+  const { completeLevel, progress, deductHeart, heartsCount, getNextReplenishTime, canPlay, MAX_HEARTS } = useGame();
   
   const [showConfetti, setShowConfetti] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [heartDeducted, setHeartDeducted] = useState(false);
+  
+  const balancePercentage = Math.round((timeBalanced / totalTime) * 100);
+  const levelPassed = balancePercentage >= PASS_THRESHOLD;
+  const nextReplenish = getNextReplenishTime();
+  const hasHeartsToPlay = canPlay();
 
   const pulseScale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
 
   useEffect(() => {
-    // Save progress
+    // Save progress only if level passed
     if (!saved) {
-      completeLevel(levelId, stars, timeBalanced);
+      if (levelPassed) {
+        completeLevel(levelId, stars, timeBalanced);
+      } else if (!heartDeducted) {
+        // Deduct a heart when level fails
+        deductHeart();
+        setHeartDeducted(true);
+      }
       setSaved(true);
     }
 
-    // Show confetti for good performance
-    if (stars >= 2) {
+    // Show confetti for passing the level
+    if (levelPassed && stars >= 2) {
       setShowConfetti(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else if (!levelPassed) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
 
     // Pulse animation
@@ -56,28 +72,40 @@ const ResultsScreen = ({ navigation, route }) => {
     opacity: glowOpacity.value,
   }));
 
-  const balancePercentage = Math.round((timeBalanced / totalTime) * 100);
-
   const getMasteryMessage = () => {
+    if (!levelPassed) return "Level Failed! You need at least 75% stability to pass.";
     if (stars === 3) return "Perfect! Your body systems remained in balance!";
     if (stars === 2) return "Good job! You maintained homeostasis well.";
-    return "Keep practicing! Homeostasis requires constant attention.";
+    return "You passed! Keep practicing to improve your score.";
   };
 
   const getBalanceMessage = () => {
+    if (!levelPassed) return `You achieved ${balancePercentage}% stability. Need ${PASS_THRESHOLD}% to pass.`;
     if (balancePercentage >= 80) return "Excellent balance maintenance!";
-    if (balancePercentage >= 50) return "Good effort at maintaining stability.";
+    if (balancePercentage >= PASS_THRESHOLD) return "Good effort at maintaining stability.";
     return "Try to keep systems balanced longer.";
   };
 
+  const formatTime = (ms) => {
+    if (!ms || ms <= 0) return '';
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   const handleReplay = () => {
+    if (!hasHeartsToPlay) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.replace(`Level${levelId}`);
   };
 
   const handleNextLevel = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (levelId < 4) {
+    if (levelPassed && levelId < 4) {
       navigation.replace(`Level${levelId + 1}`);
     } else {
       navigation.navigate('SystemSelect');
@@ -160,8 +188,20 @@ const ResultsScreen = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       >
         <Animated.View entering={FadeIn.delay(200)} style={styles.header}>
-          <Text style={styles.levelComplete}>Level Complete!</Text>
+          <Text style={[styles.levelComplete, !levelPassed && styles.levelFailed]}>
+            {levelPassed ? 'Level Complete!' : 'Level Failed!'}
+          </Text>
           <Text style={styles.systemName}>{systemName}</Text>
+          {!levelPassed && (
+            <View style={styles.failedBadge}>
+              <Text style={styles.failedBadgeText}>❌ Below {PASS_THRESHOLD}% Stability</Text>
+            </View>
+          )}
+          {levelPassed && (
+            <View style={styles.passedBadge}>
+              <Text style={styles.passedBadgeText}>✅ {balancePercentage}% Stability</Text>
+            </View>
+          )}
         </Animated.View>
 
         <Animated.View 
@@ -171,7 +211,7 @@ const ResultsScreen = ({ navigation, route }) => {
           <Animated.View style={[styles.glow, glowAnimatedStyle]} />
           
           <View style={styles.starsContainer}>
-            <StarsDisplay stars={stars} size={48} animate />
+            <StarsDisplay stars={levelPassed ? stars : 0} size={48} animate />
           </View>
 
           <Text style={styles.masteryMessage}>{getMasteryMessage()}</Text>
@@ -225,16 +265,57 @@ const ResultsScreen = ({ navigation, route }) => {
           </Animated.View>
         )}
 
+        {/* Hearts Status */}
+        {!levelPassed && (
+          <Animated.View entering={FadeInUp.delay(900)} style={styles.heartsStatusContainer}>
+            <Text style={styles.heartsStatusTitle}>Hearts Remaining</Text>
+            <View style={styles.heartsRow}>
+              {[...Array(MAX_HEARTS)].map((_, i) => (
+                <Text key={i} style={[styles.heartIcon, i >= heartsCount && styles.heartEmpty]}>
+                  {String.fromCodePoint(0x2764, 0xFE0F)}
+                </Text>
+              ))}
+            </View>
+            {heartsCount === 0 && nextReplenish && (
+              <Text style={styles.replenishText}>
+                Next heart in: {formatTime(nextReplenish)}
+              </Text>
+            )}
+            {heartsCount === 0 && (
+              <Text style={styles.noHeartsText}>
+                No hearts left! Wait for a heart to replenish to retry.
+              </Text>
+            )}
+            {heartsCount > 0 && (
+              <Text style={styles.heartsHintText}>
+                You must reach {PASS_THRESHOLD}% stability to proceed.
+              </Text>
+            )}
+          </Animated.View>
+        )}
+
         <Animated.View entering={FadeInUp.delay(1000)} style={styles.buttonContainer}>
-          <AnimatedButton
-            title="REPLAY"
-            icon="🔄"
-            onPress={handleReplay}
-            variant="outline"
-            style={styles.button}
-          />
+          {!levelPassed && (
+            <AnimatedButton
+              title={hasHeartsToPlay ? "RETRY LEVEL" : "NO HEARTS"}
+              icon={hasHeartsToPlay ? "🔄" : "💔"}
+              onPress={handleReplay}
+              variant={hasHeartsToPlay ? "primary" : "outline"}
+              style={[styles.button, !hasHeartsToPlay && styles.disabledButton]}
+            />
+          )}
+
+          {levelPassed && (
+            <AnimatedButton
+              title="REPLAY"
+              icon="🔄"
+              onPress={handleReplay}
+              variant="outline"
+              style={styles.button}
+            />
+          )}
           
-          {levelId < 4 && (
+          {levelPassed && levelId < 4 && (
             <AnimatedButton
               title="NEXT SYSTEM"
               icon="➡️"
@@ -275,10 +356,37 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.textPrimary,
   },
+  levelFailed: {
+    color: COLORS.error,
+  },
   systemName: {
     fontSize: 18,
     color: COLORS.primary,
     marginTop: 4,
+  },
+  failedBadge: {
+    backgroundColor: COLORS.error + '20',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  failedBadgeText: {
+    color: COLORS.error,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  passedBadge: {
+    backgroundColor: COLORS.success + '20',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  passedBadgeText: {
+    color: COLORS.success,
+    fontWeight: '600',
+    fontSize: 14,
   },
   resultCard: {
     backgroundColor: COLORS.cardBackground,
@@ -440,6 +548,52 @@ const styles = StyleSheet.create({
   homeButtonText: {
     fontSize: 16,
     color: COLORS.textSecondary,
+  },
+  heartsStatusContainer: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    marginTop: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.heartFull + '40',
+  },
+  heartsStatusTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  heartsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  heartIcon: {
+    fontSize: 32,
+  },
+  heartEmpty: {
+    opacity: 0.25,
+  },
+  replenishText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: 4,
+  },
+  noHeartsText: {
+    fontSize: 13,
+    color: COLORS.error,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  heartsHintText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });
 

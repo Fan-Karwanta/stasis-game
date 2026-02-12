@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -18,14 +18,25 @@ import {
   ResultsScreen,
 } from './src/screens';
 import { COLORS } from './src/constants/colors';
+import { HeartsModal, HeartLossAnimation } from './src/components';
 
 const Stack = createNativeStackNavigator();
 
+const HEARTS_HIDDEN_SCREENS = ['Splash', 'Home', 'LearningGoals', 'Instructions'];
+
 export default function App() {
+  const [currentRoute, setCurrentRoute] = useState('Splash');
+  const navigationRef = useRef(null);
+
+  const onStateChange = () => {
+    const route = navigationRef.current?.getCurrentRoute();
+    if (route) setCurrentRoute(route.name);
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <GameProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef} onStateChange={onStateChange}>
           <StatusBar style="dark" />
           <Stack.Navigator
             initialRouteName="Splash"
@@ -84,6 +95,8 @@ export default function App() {
             />
           </Stack.Navigator>
         </NavigationContainer>
+        <HeartsModal visible={!HEARTS_HIDDEN_SCREENS.includes(currentRoute)} />
+        <HeartLossAnimation />
       </GameProvider>
     </GestureHandlerRootView>
   );

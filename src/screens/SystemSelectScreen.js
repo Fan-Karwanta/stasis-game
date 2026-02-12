@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../constants/colors';
@@ -8,15 +8,33 @@ import { useGame } from '../context/GameContext';
 import { StarsDisplay } from '../components';
 
 const SystemSelectScreen = ({ navigation }) => {
-  const { isLevelUnlocked, isLevelCompleted, progress } = useGame();
+  const { isLevelUnlocked, isLevelCompleted, progress, heartsCount, getNextReplenishTime, canPlay, MAX_HEARTS } = useGame();
+
+  const formatTime = (ms) => {
+    if (!ms || ms <= 0) return '';
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   const handleLevelPress = (level) => {
-    if (isLevelUnlocked(level.id)) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      navigation.navigate(`Level${level.id}`);
-    } else {
+    if (!isLevelUnlocked(level.id)) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
     }
+    if (!canPlay()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      const nextTime = getNextReplenishTime();
+      Alert.alert(
+        '\u{1F494} No Hearts',
+        `You have no hearts left.\n\nNext heart replenishes in ${formatTime(nextTime)}.\n\nHearts regenerate every 5 minutes.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate(`Level${level.id}`);
   };
 
   const getLevelColor = (levelId) => {
@@ -61,7 +79,7 @@ const SystemSelectScreen = ({ navigation }) => {
                 onPress={() => handleLevelPress(level)}
               >
                 <View style={[styles.levelIconContainer, { backgroundColor: unlocked ? levelColor : COLORS.levelLocked }]}>
-                  <Text style={styles.levelIcon}>{unlocked ? level.icon : '🔒'}</Text>
+                  <Text style={styles.levelIcon}>{unlocked ? level.icon : '\u{1F512}'}</Text>
                 </View>
                 
                 <View style={styles.levelInfo}>
@@ -77,7 +95,7 @@ const SystemSelectScreen = ({ navigation }) => {
                       <StarsDisplay stars={stars} size={18} />
                       {completed && (
                         <View style={styles.completedBadge}>
-                          <Text style={styles.completedText}>✓ Completed</Text>
+                          <Text style={styles.completedText}>{'✓'} Completed</Text>
                         </View>
                       )}
                     </View>

@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, Alert } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, getMeterColor } from '../constants/colors';
 import { STIMULI, FEEDBACK_MESSAGES } from '../constants/gameData';
 import { useGame } from '../context/GameContext';
-import { StatusMeter, LivesDisplay, BodySilhouette, SituationVisual } from '../components';
+import { StatusMeter, BodySilhouette, SituationVisual } from '../components';
 
 const NORMAL_MIN = 70;
 const NORMAL_MAX = 100;
 const GAME_DURATION = 60;
 
 const Level3Screen = ({ navigation }) => {
-  const { lives, loseLife, useHint, hintsUsed, resetLevelState, calculateStars } = useGame();
+  const { heartsCount, deductHeart, useHint, hintsUsed, resetLevelState, calculateStars, canPlay, getNextReplenishTime } = useGame();
   
   const [glucose, setGlucose] = useState(85);
   const [currentStimulus, setCurrentStimulus] = useState(null);
@@ -30,6 +30,20 @@ const Level3Screen = ({ navigation }) => {
   const glucoseRef = useRef(glucose);
 
   useEffect(() => {
+    if (!canPlay()) {
+      const nextTime = getNextReplenishTime();
+      const formatMs = (ms) => {
+        if (!ms || ms <= 0) return 'soon';
+        const s = Math.ceil(ms / 1000);
+        return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+      };
+      Alert.alert(
+        '💔 No Hearts',
+        `You have no hearts for this level.\nNext heart in ${formatMs(nextTime)}.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
     resetLevelState();
     generateStimulus();
     return () => {
@@ -60,6 +74,7 @@ const Level3Screen = ({ navigation }) => {
         timeBalanced: timeBalancedRef.current,
         totalTime: GAME_DURATION,
         systemName: 'Blood Sugar Regulation',
+        livesRemaining: heartsCount,
       });
     }
   }, [shouldEndGame, navigation, calculateStars]);
@@ -121,7 +136,7 @@ const Level3Screen = ({ navigation }) => {
     
     if (glucose < 50 || glucose > 140) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      loseLife();
+      deductHeart();
       setFeedbackMessage(glucose > 140 
         ? 'Critical! Hyperglycemia - blood sugar is dangerously high!' 
         : 'Critical! Hypoglycemia - blood sugar is dangerously low!');
@@ -133,11 +148,11 @@ const Level3Screen = ({ navigation }) => {
 
   // Check for game over
   useEffect(() => {
-    if (lives <= 0) {
+    if (heartsCount <= 0) {
       setGameActive(false);
       setShouldEndGame(true);
     }
-  }, [lives]);
+  }, [heartsCount]);
 
   const generateStimulus = () => {
     const stimuli = STIMULI.glucose;
@@ -251,9 +266,6 @@ const Level3Screen = ({ navigation }) => {
             <Text style={styles.levelTitle}>🍬 Blood Sugar</Text>
           </View>
           <View style={styles.headerLeft} />
-        </View>
-        <View style={styles.livesRow}>
-          <LivesDisplay lives={lives} />
         </View>
       </Animated.View>
 
@@ -387,10 +399,6 @@ const styles = StyleSheet.create({
   headerCenter: {
     flex: 1,
     alignItems: 'center',
-  },
-  livesRow: {
-    alignItems: 'center',
-    marginTop: 8,
   },
   backButton: {
     width: 36,

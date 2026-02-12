@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ScrollView, Alert } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, getMeterColor } from '../constants/colors';
 import { useGame } from '../context/GameContext';
-import { StatusMeter, LivesDisplay } from '../components';
+import { StatusMeter } from '../components';
 
 const GAME_DURATION = 90;
 
 const Level4Screen = ({ navigation }) => {
-  const { lives, loseLife, useHint, hintsUsed, resetLevelState, calculateStars } = useGame();
+  const { heartsCount, deductHeart, useHint, hintsUsed, resetLevelState, calculateStars, canPlay, getNextReplenishTime } = useGame();
   
   // Multiple systems
   const [temperature, setTemperature] = useState(37.0);
@@ -45,6 +45,20 @@ const Level4Screen = ({ navigation }) => {
   ];
 
   useEffect(() => {
+    if (!canPlay()) {
+      const nextTime = getNextReplenishTime();
+      const formatMs = (ms) => {
+        if (!ms || ms <= 0) return 'soon';
+        const s = Math.ceil(ms / 1000);
+        return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+      };
+      Alert.alert(
+        '💔 No Hearts',
+        `You have no hearts for this level.\nNext heart in ${formatMs(nextTime)}.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
     resetLevelState();
     setCurrentScenario(scenarios[0]);
     return () => {
@@ -90,6 +104,7 @@ const Level4Screen = ({ navigation }) => {
         specialMessage: insulinDisabledRef.current 
           ? 'This scenario simulates diabetes - when insulin response fails, maintaining glucose balance becomes very difficult.'
           : null,
+        livesRemaining: heartsCount,
       });
     }
   }, [shouldEndGame, navigation, calculateStars]);
@@ -185,7 +200,7 @@ const Level4Screen = ({ navigation }) => {
     
     if (critical) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      loseLife();
+      deductHeart();
       setFeedbackMessage(message);
       setShowFeedback(true);
     }
@@ -193,11 +208,11 @@ const Level4Screen = ({ navigation }) => {
 
   // Check for game over
   useEffect(() => {
-    if (lives <= 0) {
+    if (heartsCount <= 0) {
       setGameActive(false);
       setShouldEndGame(true);
     }
-  }, [lives]);
+  }, [heartsCount]);
 
   const handleAction = (systemType, action) => {
     if (!gameActive) return;
@@ -293,7 +308,7 @@ const Level4Screen = ({ navigation }) => {
           <Text style={styles.backText}>✕</Text>
         </Pressable>
         <Text style={styles.levelTitle}>⚡ System Interaction</Text>
-        <LivesDisplay lives={lives} size="small" />
+        <View style={{ width: 36 }} />
       </View>
 
       {/* Timer Row */}
