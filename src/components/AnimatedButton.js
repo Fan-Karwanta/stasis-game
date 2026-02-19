@@ -8,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../constants/colors';
+import { useAudio } from '../context/AudioContext';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -19,6 +20,7 @@ const AnimatedButton = ({
   disabled = false,
   style,
 }) => {
+  const { playSfx } = useAudio();
   const scale = useSharedValue(1);
 
   const handlePressIn = () => {
@@ -34,6 +36,7 @@ const AnimatedButton = ({
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playSfx('buttonTap');
     if (onPress) onPress();
   };
 

@@ -3,13 +3,16 @@ import { View, Text, StyleSheet, Pressable, Modal, ScrollView, Alert } from 'rea
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, getMeterColor } from '../constants/colors';
+import { LEVEL_TUTORIALS } from '../constants/gameData';
 import { useGame } from '../context/GameContext';
-import { StatusMeter } from '../components';
+import { useAudio } from '../context/AudioContext';
+import { StatusMeter, LevelTutorialModal } from '../components';
 
-const GAME_DURATION = 90;
+const GAME_DURATION = 30;
 
 const Level4Screen = ({ navigation }) => {
   const { heartsCount, deductHeart, useHint, hintsUsed, resetLevelState, calculateStars, canPlay, getNextReplenishTime } = useGame();
+  const { playSfx, startClockTick, stopClockTick } = useAudio();
   
   // Multiple systems
   const [temperature, setTemperature] = useState(37.0);
@@ -26,8 +29,10 @@ const Level4Screen = ({ navigation }) => {
   const [timeBalanced, setTimeBalanced] = useState(0);
   const [gameActive, setGameActive] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [showScenarioModal, setShowScenarioModal] = useState(true);
+  const [showScenarioModal, setShowScenarioModal] = useState(false);
   const [shouldEndGame, setShouldEndGame] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(true);
+  const [tutorialSeen, setTutorialSeen] = useState(false);
   
   const timeBalancedRef = useRef(0);
   const gameActiveRef = useRef(true);
@@ -111,25 +116,30 @@ const Level4Screen = ({ navigation }) => {
 
   // Game timer
   useEffect(() => {
-    if (!gameActive || showScenarioModal) return;
+    if (!gameActive || showScenarioModal || showTutorial) return;
     
+    startClockTick();
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           setGameActive(false);
           setShouldEndGame(true);
+          stopClockTick();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [gameActive, showScenarioModal]);
+    return () => {
+      clearInterval(timer);
+      stopClockTick();
+    };
+  }, [gameActive, showScenarioModal, showTutorial]);
 
   // Track time balanced (all systems must be balanced) - use refs to avoid restarting interval
   useEffect(() => {
-    if (!gameActive || showScenarioModal) return;
+    if (!gameActive || showScenarioModal || showTutorial) return;
     
     const balanceTimer = setInterval(() => {
       const tempBalanced = temperatureRef.current >= 36.5 && temperatureRef.current <= 37.5;
@@ -142,11 +152,11 @@ const Level4Screen = ({ navigation }) => {
     }, 1000);
 
     return () => clearInterval(balanceTimer);
-  }, [gameActive, showScenarioModal]);
+  }, [gameActive, showScenarioModal, showTutorial]);
 
   // Dynamic changes for all systems
   useEffect(() => {
-    if (!gameActive || showScenarioModal) return;
+    if (!gameActive || showScenarioModal || showTutorial) return;
     
     const driftTimer = setInterval(() => {
       // Temperature drift
@@ -169,11 +179,11 @@ const Level4Screen = ({ navigation }) => {
     }, 2500);
 
     return () => clearInterval(driftTimer);
-  }, [gameActive, showScenarioModal, insulinDisabled]);
+  }, [gameActive, showScenarioModal, showTutorial, insulinDisabled]);
 
   // Check for critical states
   useEffect(() => {
-    if (!gameActive || showScenarioModal) return;
+    if (!gameActive || showScenarioModal || showTutorial) return;
     
     let critical = false;
     let message = '';
@@ -200,11 +210,13 @@ const Level4Screen = ({ navigation }) => {
     
     if (critical) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playSfx('criticalAlert');
+      playSfx('heartLoss');
       deductHeart();
       setFeedbackMessage(message);
       setShowFeedback(true);
     }
-  }, [temperature, hydration, glucose, gameActive, showScenarioModal]);
+  }, [temperature, hydration, glucose, gameActive, showScenarioModal, showTutorial]);
 
   // Check for game over
   useEffect(() => {
@@ -218,6 +230,7 @@ const Level4Screen = ({ navigation }) => {
     if (!gameActive) return;
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playSfx('actionPress');
     
     switch (systemType) {
       case 'temperature':
@@ -242,6 +255,7 @@ const Level4Screen = ({ navigation }) => {
   };
 
   const handleHint = () => {
+    playSfx('hintReveal');
     useHint();
     setShowHint(true);
   };
@@ -280,6 +294,31 @@ const Level4Screen = ({ navigation }) => {
     ],
   };
 
+  const handleBackPress = () => {
+    setGameActive(false);
+    gameActiveRef.current = false;
+    Alert.alert(
+      '⚠️ Leave Level?',
+      'Your progress will be lost if you go back. Are you sure?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            setGameActive(true);
+            gameActiveRef.current = true;
+          },
+        },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => navigation.goBack(),
+        },
+      ],
+      { cancelable: false }
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Scenario Modal */}
@@ -294,7 +333,7 @@ const Level4Screen = ({ navigation }) => {
             </Text>
             <Pressable
               style={styles.startButton}
-              onPress={() => setShowScenarioModal(false)}
+              onPress={() => { playSfx('swoosh'); setShowScenarioModal(false); }}
             >
               <Text style={styles.startButtonText}>Begin Challenge</Text>
             </Pressable>
@@ -302,17 +341,31 @@ const Level4Screen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Tutorial Modal */}
+      <LevelTutorialModal
+        visible={showTutorial}
+        onClose={() => {
+          setShowTutorial(false);
+          setTutorialSeen(true);
+          setShowScenarioModal(true);
+        }}
+        tutorialData={LEVEL_TUTORIALS[4]}
+      />
+
       {/* Compact Header with Timer */}
       <View style={styles.compactHeader}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+        <Pressable onPress={handleBackPress} style={styles.backButton}>
           <Text style={styles.backText}>✕</Text>
         </Pressable>
         <Text style={styles.levelTitle}>⚡ System Interaction</Text>
-        <View style={{ width: 36 }} />
+        <View style={{ width: 32 }} />
       </View>
 
       {/* Timer Row */}
       <View style={styles.timerRow}>
+        <Pressable onPress={() => { playSfx('buttonTap'); setShowTutorial(true); }} style={styles.tutorialButton}>
+          <Text style={styles.tutorialButtonText}>?</Text>
+        </Pressable>
         <View style={styles.timerItem}>
           <Text style={styles.timerValue}>{timeRemaining}s</Text>
           <Text style={styles.timerLabel}>Time</Text>
@@ -450,7 +503,7 @@ const Level4Screen = ({ navigation }) => {
             <Text style={styles.modalText}>{getHintText()}</Text>
             <Pressable
               style={styles.modalButton}
-              onPress={() => setShowHint(false)}
+              onPress={() => { playSfx('buttonTap'); setShowHint(false); }}
             >
               <Text style={styles.modalButtonText}>Got it!</Text>
             </Pressable>
@@ -495,7 +548,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingLeft: 20,
+    paddingRight: 64,
     paddingVertical: 6,
   },
   timerItem: {
@@ -703,6 +757,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  tutorialButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tutorialButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
 });
 

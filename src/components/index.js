@@ -8,3 +8,4 @@ export { default as ActionButton } from './ActionButton';
 export { default as SituationVisual } from './SituationVisual';
 export { default as HeartsModal } from './HeartsModal';
 export { default as HeartLossAnimation } from './HeartLossAnimation';
+export { default as LevelTutorialModal } from './LevelTutorialModal';

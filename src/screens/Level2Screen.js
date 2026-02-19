@@ -3,16 +3,18 @@ import { View, Text, StyleSheet, Pressable, Modal, ScrollView, Alert } from 'rea
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { COLORS, getMeterColor } from '../constants/colors';
-import { STIMULI, FEEDBACK_MESSAGES } from '../constants/gameData';
+import { STIMULI, FEEDBACK_MESSAGES, LEVEL_TUTORIALS } from '../constants/gameData';
 import { useGame } from '../context/GameContext';
-import { StatusMeter, BodySilhouette, SituationVisual } from '../components';
+import { useAudio } from '../context/AudioContext';
+import { StatusMeter, BodySilhouette, SituationVisual, LevelTutorialModal } from '../components';
 
 const NORMAL_MIN = 40;
 const NORMAL_MAX = 60;
-const GAME_DURATION = 60;
+const GAME_DURATION = 30;
 
 const Level2Screen = ({ navigation }) => {
   const { heartsCount, deductHeart, useHint, hintsUsed, resetLevelState, calculateStars, canPlay, getNextReplenishTime } = useGame();
+  const { playSfx, startClockTick, stopClockTick } = useAudio();
   
   const [hydration, setHydration] = useState(50);
   const [currentStimulus, setCurrentStimulus] = useState(null);
@@ -23,6 +25,8 @@ const Level2Screen = ({ navigation }) => {
   const [gameActive, setGameActive] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [shouldEndGame, setShouldEndGame] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(true);
+  const [tutorialSeen, setTutorialSeen] = useState(false);
   
   const timeBalancedRef = useRef(0);
   const gameActiveRef = useRef(true);
@@ -80,25 +84,30 @@ const Level2Screen = ({ navigation }) => {
 
   // Game timer
   useEffect(() => {
-    if (!gameActive) return;
+    if (!gameActive || showTutorial) return;
     
+    startClockTick();
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           setGameActive(false);
           setShouldEndGame(true);
+          stopClockTick();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [gameActive]);
+    return () => {
+      clearInterval(timer);
+      stopClockTick();
+    };
+  }, [gameActive, showTutorial]);
 
   // Track time balanced - use ref to avoid restarting interval on every hydration change
   useEffect(() => {
-    if (!gameActive) return;
+    if (!gameActive || showTutorial) return;
     
     const balanceTimer = setInterval(() => {
       if (hydrationRef.current >= NORMAL_MIN && hydrationRef.current <= NORMAL_MAX) {
@@ -107,7 +116,7 @@ const Level2Screen = ({ navigation }) => {
     }, 1000);
 
     return () => clearInterval(balanceTimer);
-  }, [gameActive]);
+  }, [gameActive, showTutorial]);
 
   // Dynamic hydration change
   // DIFFICULTY CONFIG: Change interval (ms) to adjust instability speed
@@ -115,7 +124,7 @@ const Level2Screen = ({ navigation }) => {
   const DRIFT_INTERVAL = 667; // 3x faster than original 2000ms
   
   useEffect(() => {
-    if (!gameActive) return;
+    if (!gameActive || showTutorial) return;
     
     const driftTimer = setInterval(() => {
       setHydration((prev) => {
@@ -127,7 +136,7 @@ const Level2Screen = ({ navigation }) => {
     }, DRIFT_INTERVAL);
 
     return () => clearInterval(driftTimer);
-  }, [gameActive]);
+  }, [gameActive, showTutorial]);
 
   // Check for critical states
   useEffect(() => {
@@ -135,6 +144,8 @@ const Level2Screen = ({ navigation }) => {
     
     if (hydration < 20 || hydration > 85) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playSfx('criticalAlert');
+      playSfx('heartLoss');
       deductHeart();
       setFeedbackMessage(hydration > 85 
         ? 'Critical! Overhydration can dilute electrolytes!' 
@@ -191,6 +202,7 @@ const Level2Screen = ({ navigation }) => {
   };
 
   const handleHint = () => {
+    playSfx('hintReveal');
     useHint();
     setShowHint(true);
   };
@@ -222,6 +234,7 @@ const Level2Screen = ({ navigation }) => {
     if (!gameActive) return;
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playSfx('actionPress');
     
     setHydration((prev) => {
       const newHydration = prev + action.effect;
@@ -240,13 +253,38 @@ const Level2Screen = ({ navigation }) => {
     setTimeout(() => setShowFeedback(false), 1500);
   };
 
+  const handleBackPress = () => {
+    setGameActive(false);
+    gameActiveRef.current = false;
+    Alert.alert(
+      '⚠️ Leave Level?',
+      'Your progress will be lost if you go back. Are you sure?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            setGameActive(true);
+            gameActiveRef.current = true;
+          },
+        },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => navigation.goBack(),
+        },
+      ],
+      { cancelable: false }
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Pressable onPress={handleBackPress} style={styles.backButton}>
               <Text style={styles.backText}>✕</Text>
             </Pressable>
           </View>
@@ -259,6 +297,9 @@ const Level2Screen = ({ navigation }) => {
 
       {/* Timer and Balance Time */}
       <View style={styles.timerContainer}>
+        <Pressable onPress={() => { playSfx('buttonTap'); setShowTutorial(true); }} style={styles.tutorialButton}>
+          <Text style={styles.tutorialButtonText}>?</Text>
+        </Pressable>
         <View style={styles.timerBox}>
           <Text style={styles.timerLabel}>Time</Text>
           <Text style={styles.timerValue}>{timeRemaining}s</Text>
@@ -336,15 +377,25 @@ const Level2Screen = ({ navigation }) => {
         </View>
       </ScrollView>
 
+      {/* Tutorial Modal */}
+      <LevelTutorialModal
+        visible={showTutorial}
+        onClose={() => {
+          setShowTutorial(false);
+          setTutorialSeen(true);
+        }}
+        tutorialData={LEVEL_TUTORIALS[2]}
+      />
+
       {/* Hint Modal */}
       <Modal visible={showHint} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowHint(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => { playSfx('buttonTap'); setShowHint(false); }}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>💡 Hint</Text>
             <Text style={styles.modalText}>{getHintText()}</Text>
             <Pressable
               style={styles.modalButton}
-              onPress={() => setShowHint(false)}
+              onPress={() => { playSfx('buttonTap'); setShowHint(false); }}
             >
               <Text style={styles.modalButtonText}>Got it!</Text>
             </Pressable>
@@ -541,6 +592,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  tutorialButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tutorialButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
 });
 

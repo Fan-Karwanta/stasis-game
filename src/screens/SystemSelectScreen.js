@@ -5,10 +5,12 @@ import * as Haptics from 'expo-haptics';
 import { COLORS } from '../constants/colors';
 import { LEVELS } from '../constants/gameData';
 import { useGame } from '../context/GameContext';
+import { useAudio } from '../context/AudioContext';
 import { StarsDisplay } from '../components';
 
 const SystemSelectScreen = ({ navigation }) => {
   const { isLevelUnlocked, isLevelCompleted, progress, heartsCount, getNextReplenishTime, canPlay, MAX_HEARTS } = useGame();
+  const { playSfx } = useAudio();
 
   const formatTime = (ms) => {
     if (!ms || ms <= 0) return '';
@@ -21,10 +23,12 @@ const SystemSelectScreen = ({ navigation }) => {
   const handleLevelPress = (level) => {
     if (!isLevelUnlocked(level.id)) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      playSfx('wrongAction');
       return;
     }
     if (!canPlay()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      playSfx('wrongAction');
       const nextTime = getNextReplenishTime();
       Alert.alert(
         '\u{1F494} No Hearts',
@@ -34,6 +38,7 @@ const SystemSelectScreen = ({ navigation }) => {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playSfx('navigate');
     navigation.navigate(`Level${level.id}`);
   };
 

@@ -12,6 +12,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../constants/colors';
 import { useGame } from '../context/GameContext';
+import { useAudio } from '../context/AudioContext';
 import { StarsDisplay, Confetti, AnimatedButton } from '../components';
 
 const PASS_THRESHOLD = 75; // 75% stability required to pass
@@ -19,6 +20,7 @@ const PASS_THRESHOLD = 75; // 75% stability required to pass
 const ResultsScreen = ({ navigation, route }) => {
   const { levelId, stars, timeBalanced, totalTime, systemName, specialMessage, livesRemaining } = route.params;
   const { completeLevel, progress, deductHeart, heartsCount, getNextReplenishTime, canPlay, MAX_HEARTS } = useGame();
+  const { playSfx } = useAudio();
   
   const [showConfetti, setShowConfetti] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -49,8 +51,13 @@ const ResultsScreen = ({ navigation, route }) => {
     if (levelPassed && stars >= 2) {
       setShowConfetti(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else if (!levelPassed) {
+      playSfx('levelComplete');
+      setTimeout(() => playSfx('starEarned'), 600);
+    } else if (levelPassed) {
+      playSfx('levelComplete');
+    } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      playSfx('levelFail');
     }
 
     // Pulse animation
@@ -97,14 +104,17 @@ const ResultsScreen = ({ navigation, route }) => {
   const handleReplay = () => {
     if (!hasHeartsToPlay) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      playSfx('wrongAction');
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playSfx('navigate');
     navigation.replace(`Level${levelId}`);
   };
 
   const handleNextLevel = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    playSfx('navigate');
     if (levelPassed && levelId < 4) {
       navigation.replace(`Level${levelId + 1}`);
     } else {
@@ -114,6 +124,7 @@ const ResultsScreen = ({ navigation, route }) => {
 
   const handleHome = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playSfx('buttonTap');
     navigation.navigate('Home');
   };
 

@@ -3,10 +3,22 @@ import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import Animated, { ZoomIn, ZoomOut, FadeIn, FadeOut } from 'react-native-reanimated';
 import { COLORS } from '../constants/colors';
 import { useGame } from '../context/GameContext';
+import { useAudio } from '../context/AudioContext';
 
 const HeartsModal = ({ visible = true }) => {
   const { heartsCount, getNextReplenishTime, MAX_HEARTS } = useGame();
+  const { playSfx } = useAudio();
   const [modalVisible, setModalVisible] = useState(false);
+
+  const handleOpen = () => {
+    playSfx('pop');
+    setModalVisible(true);
+  };
+
+  const handleClose = () => {
+    playSfx('buttonTap');
+    setModalVisible(false);
+  };
 
   if (!visible) return null;
 
@@ -25,7 +37,7 @@ const HeartsModal = ({ visible = true }) => {
       {/* Floating Heart Button */}
       <Pressable
         style={styles.floatingButton}
-        onPress={() => setModalVisible(true)}
+        onPress={handleOpen}
       >
         <Text style={styles.floatingHeartIcon}>❤️</Text>
         <View style={[
@@ -46,11 +58,11 @@ const HeartsModal = ({ visible = true }) => {
         transparent
         visible={modalVisible}
         animationType="none"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={handleClose}
       >
         <Pressable
           style={styles.overlay}
-          onPress={() => setModalVisible(false)}
+          onPress={handleClose}
         >
           <Animated.View
             entering={ZoomIn.duration(250)}
@@ -59,7 +71,7 @@ const HeartsModal = ({ visible = true }) => {
             <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>❤️ Hearts</Text>
-                <Pressable onPress={() => setModalVisible(false)} style={styles.closeButton}>
+                <Pressable onPress={handleClose} style={styles.closeButton}>
                   <Text style={styles.closeText}>✕</Text>
                 </Pressable>
               </View>

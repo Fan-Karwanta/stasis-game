@@ -11,8 +11,10 @@ import Animated, {
   FadeInDown,
 } from 'react-native-reanimated';
 import { COLORS } from '../constants/colors';
+import { useAudio } from '../context/AudioContext';
 
 const InstructionsScreen = ({ navigation }) => {
+  const { playSfx } = useAudio();
   const [animationStep, setAnimationStep] = useState(0);
   const temperatureValue = useSharedValue(37);
   const sweatOpacity = useSharedValue(0);
@@ -193,7 +195,7 @@ const InstructionsScreen = ({ navigation }) => {
       <Animated.View entering={FadeIn.delay(1100)} style={styles.footer}>
         <Pressable
           style={styles.startButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => { playSfx('buttonTap'); navigation.goBack(); }}
         >
           <Text style={styles.startButtonText}>Got it!</Text>
         </Pressable>

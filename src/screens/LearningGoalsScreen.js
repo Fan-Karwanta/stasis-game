@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { COLORS } from '../constants/colors';
 import { LEARNING_GOALS } from '../constants/gameData';
+import { useAudio } from '../context/AudioContext';
 
 const LearningGoalsScreen = ({ navigation }) => {
+  const { playSfx } = useAudio();
   return (
     <View style={styles.container}>
       <Animated.View entering={FadeIn.delay(100)} style={styles.header}>
@@ -64,7 +66,7 @@ const LearningGoalsScreen = ({ navigation }) => {
       <Animated.View entering={FadeIn.delay(1000)} style={styles.footer}>
         <Pressable
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => { playSfx('buttonTap'); navigation.goBack(); }}
         >
           <Text style={styles.backButtonText}>Got it!</Text>
         </Pressable>
